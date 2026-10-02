@@ -80,22 +80,26 @@ RUN apk add --no-cache git ca-certificates tzdata
 # longer hard-fail the build. If no checksum database answers, verification is
 # turned off for this build; module downloads still come from GOPROXY.
 RUN set -eu; \
-    reachable() { \
+    probe() { \
         wget -q -T 8 -S -O /dev/null "https://$1/" 2>&1 | grep -q "HTTP/"; \
     }; \
-    proxy=""; \
+    goproxy=""; \
     for h in goproxy.cn proxy.golang.org; do \
-        if reachable "$h"; then proxy="$proxy https://${h}"; fi; \
+        if probe "$h"; then \
+            if [ -z "$goproxy" ]; then goproxy="https://${h}"; else goproxy="${goproxy},https://${h}"; fi; \
+        fi; \
     done; \
-    proxy="$(echo $proxy | sed 's/^ *//')"; \
-    if [ -z "$proxy" ]; then \
-        proxy="https://goproxy.cn,https://proxy.golang.org,direct"; \
+    if [ -z "$goproxy" ]; then \
+        goproxy="https://goproxy.cn,https://proxy.golang.org"; \
     fi; \
-    case "$proxy" in *,direct) goproxy="$proxy" ;; *) goproxy="${proxy},direct" ;; esac; \
+    goproxy="${goproxy},direct"; \
     sumdb=""; \
+    seen=""; \
     for h in "$GOSUMDB" sum.golang.org sum.golang.google.cn; do \
         [ -n "$h" ] || continue; \
-        if reachable "$h"; then sumdb="$h"; break; fi; \
+        case ",${seen}," in *",${h},"*) continue ;; esac; \
+        seen="${seen},${h}"; \
+        if probe "$h"; then sumdb="$h"; break; fi; \
     done; \
     [ -n "$sumdb" ] || sumdb="off"; \
     echo "GOPROXY=${goproxy}" > /etc/golang.env; \
