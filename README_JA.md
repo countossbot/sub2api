@@ -475,7 +475,7 @@ cd sub2api/deploy
 ### 方法4: Render ブループリント（無料コンテナ）
 
 Render の無料コンテナインスタンス（米国リージョン）へデプロイします。データベースと Redis は外部インスタンスを使用します。
-ブループリントで入力が必要なのは**2 つのシークレットのみ**で、残りはあらかじめ設定済みです（外部 DB の接続プール上限を含む。Aiven の無料枠では必須）:
+ブループリントで入力が必要なのは**3 項目のみ**（接続文字列 2 つ + 管理者パスワード）で、残りはあらかじめ設定済みです（外部 DB の接続プール上限を含む。Aiven の無料枠では必須）:
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/countossbot/sub2api)
 
@@ -483,13 +483,15 @@ Render の無料コンテナインスタンス（米国リージョン）へデ�
 | --- | --- | --- |
 | `DATABASE_URL` | はい | 外部 PostgreSQL の接続文字列（例: `postgresql://user:password@host:5432/dbname?sslmode=require`） |
 | `REDIS_URL` | はい | 外部 Redis/Valkey の接続文字列。`rediss://` で TLS 有効（例: `rediss://default:password@host:6379`） |
+| `ADMIN_EMAIL` | 設定済み | `admin@sub2api.local` — 初期管理者のログインメール |
+| `ADMIN_PASSWORD` | **はい** | 管理画面のログインパスワード。**空欄にするとランダム生成され、デプロイログに一度だけ出力されます**（ログが流れると復元不可）。 |
 | `AUTO_SETUP` | 設定済み | `true` — 上記の変数から `config.yaml` と最初の管理者を作成します |
 | `TZ` | 設定済み | `UTC` |
 | `DATABASE_MAX_OPEN_CONNS` | 設定済み | `8` — 接続プール上限。アプリ既定の `256` は、約 20 接続しか許可しない外部インスタンスを枯渇させます |
 | `DATABASE_MAX_IDLE_CONNS` | 設定済み | `2` — `DATABASE_MAX_OPEN_CONNS` 以下である必要があります |
 
-入力が必要なのは `DATABASE_URL` と `REDIS_URL` のみで、`DATABASE_HOST` / `REDIS_HOST` のような個別変数は不要です。
-デプロイ後は `curl -f https://<サービス名>.onrender.com/health` で確認できます。
+入力が必要なのは `DATABASE_URL`、`REDIS_URL`、`ADMIN_PASSWORD` の 3 つで、`DATABASE_HOST` / `REDIS_HOST` のような個別変数は不要です。
+デプロイ後は `curl -f https://<サービス名>.onrender.com/health` で確認し、`ADMIN_EMAIL` + `ADMIN_PASSWORD` でログインします。
 
 > 無料インスタンスは永続ディスクがなく、アイドル時にスリープします。詳細は [deploy/RENDER.md](deploy/RENDER.md) を参照してください。
 

@@ -10,9 +10,9 @@
 
 ---
 
-## 1. 环境变量（6 个，其中 2 个需你填写）
+## 1. 环境变量（8 个，其中 3 项需你填写）
 
-只需填写 **2 个连接串**，其余 4 个已在 `render.yaml` 中预置。**不需要**任何
+只需填写 **3 项**（两个连接串 + 管理员密码），其余 5 个已在 `render.yaml` 中预置。**不需要**任何
 `DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_USER` / `DATABASE_PASSWORD` /
 `DATABASE_NAME` / `DATABASE_SSLMODE` 或 `REDIS_HOST` / `REDIS_PORT` /
 `REDIS_PASSWORD` / `REDIS_ENABLE_TLS` 分项变量——两个连接串已包含全部连接信息。
@@ -21,15 +21,17 @@
 | --- | --- | --- | --- |
 | `DATABASE_URL` | 是（需填写） | 后端连接 PostgreSQL 的连接串。解析出 host / port / user / password / dbname，`?sslmode=require` 会被识别用于 TLS。 | Aiven 控制台 → 该 PostgreSQL 服务 → **Overview / Connection information** → 复制 **URI**。格式：`postgresql://USER:PASSWORD@HOST:PORT/DBNAME?sslmode=require` |
 | `REDIS_URL` | 是（需填写） | 后端连接 Redis/Valkey 的连接串。`rediss://` 会自动开启 TLS；末尾 `/N` 表示使用第 N 号库。 | Aiven 控制台 → 该 Valkey 服务 → **Overview / Connection information** → 复制 **URI**。格式：`rediss://default:PASSWORD@HOST:PORT` |
+| `ADMIN_EMAIL` | 已预置 | 初始管理员的登录邮箱。仅在数据库里还没有管理员时用于创建首个账号。 | 默认 `admin@sub2api.local`，可改成你常用的邮箱 |
+| `ADMIN_PASSWORD` | **是（需填写）** | 初始管理员的登录密码。**必须设置**：若留空，应用会随机生成一个密码并**只在部署日志里打印一次**，日志一旦轮转就再也拿不回来，你会无法登录后台。 | 你自己设定，例如 12 位以上的强密码 |
 | `AUTO_SETUP` | 已预置 | 设为 `true` 时，首次启动会根据上面的连接串生成 `config.yaml` 并创建初始管理员。这正是无持久盘场景需要的自动初始化。 | 固定填 `"true"` |
 | `TZ` | 已预置 | 日志与定时任务使用的时区。 | 默认 `UTC`，可改为 `Asia/Shanghai` 等 |
 | `DATABASE_MAX_OPEN_CONNS` | 已预置 | **数据库连接池上限，必须设置。** 应用默认值是 256，而 Aiven 免费实例总连接数只有 20 出头；不限制会立刻耗尽连接，后台任务报 `pq: sorry, too many clients already` 与 `remaining connection slots are reserved for roles with the SUPERUSER attribute`。 | 预置 `8`（可按套餐调整，需小于该实例的 `max_connections`） |
 | `DATABASE_MAX_IDLE_CONNS` | 已预置 | 连接池中保留的空闲连接数。需 **≤** `DATABASE_MAX_OPEN_CONNS`，否则应用启动校验会失败。 | 预置 `2` |
 
-`render.yaml` 中 `DATABASE_URL` 与 `REDIS_URL` 标记为 `sync: false`，即**不落盘到仓库**：
+`render.yaml` 中 `DATABASE_URL`、`REDIS_URL` 与 `ADMIN_PASSWORD` 标记为 `sync: false`，即**不落盘到仓库**：
 Render 会在 Dashboard 里弹出输入框让你填写，值只存在于 Render 的服务环境中。
 
-> 可选：若你想指定初始管理员邮箱，可在 Render Dashboard 追加 `ADMIN_EMAIL`（不写入 `render.yaml`，保持变量数最少）。
+> 首次部署完成后，用 `ADMIN_EMAIL` 与 `ADMIN_PASSWORD` 登录，登录后可立即在后台修改密码。
 
 ### 关于外部连接的 TLS
 
@@ -43,7 +45,10 @@ Render 会在 Dashboard 里弹出输入框让你填写，值只存在于 Render 
 1. **推送代码**：确保本次改动（`render.yaml`、`deploy/RENDER.md`、后端 URL 解析改动）已在你要部署的分支上。
 2. **登录 Render** → 右上角 **New +** → **Blueprint**。
 3. **选择仓库**：连接 GitHub/GitLab 并选中本项目仓库；Render 会自动发现根目录的 `render.yaml`。
-4. **填写密钥变量**：蓝图预览页会列出 `DATABASE_URL`、`REDIS_URL`（`sync: false`），把 Aiven 的两个连接串粘贴进去。
+4. **填写密钥变量**：蓝图预览页会列出 `DATABASE_URL`、`REDIS_URL`、`ADMIN_PASSWORD`（均为 `sync: false`）：
+   - `DATABASE_URL`、`REDIS_URL` 粘贴 Aiven 的两个连接串；
+   - `ADMIN_PASSWORD` 设置你自己的后台登录密码（**留空会导致账号密码只出现在日志里，务必填写**）。
+   - 区域保持默认的 **Oregon（美国）**；实例类型保持 **Free**。
    - 区域保持默认的 **Oregon（美国）**；实例类型保持 **Free**。
 5. **Apply / Create**：Render 开始构建 Docker 镜像（多阶段：前端 pnpm 构建 → Go 构建 → 精简运行时）。
    免费实例首次构建通常需要数分钟。
@@ -55,9 +60,19 @@ Render 会在 Dashboard 里弹出输入框让你填写，值只存在于 Render 
 # 1) 健康检查（替换成你的 Render 服务地址）
 curl -f https://<your-service>.onrender.com/health
 
-# 2) 打开前端首页（若返回登录页 HTML 即为正常）
-curl -sI https://<your-service>.onrender.com/ | head -1
 ```
+
+### 验证登录（关键）
+
+```bash
+# 用初始管理员账号登录，应返回 code:0 与 access_token
+curl -s -X POST https://<your-service>.onrender.com/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@sub2api.local","password":"<你设置的 ADMIN_PASSWORD>"}'
+```
+
+登录成功后即可在管理后台修改邮箱与密码。`ADMIN_EMAIL` / `ADMIN_PASSWORD` 只在首次创建管理员时生效；
+若数据库里已有管理员，重新部署会跳过创建，不会覆盖你改过的密码。
 
 查看启动日志（Render Dashboard → 你的服务 → **Logs**），应能看到：
 数据目录初始化、`AUTO_SETUP` 自动配置、数据库迁移完成、HTTP 服务开始监听 **`$PORT`**。
@@ -91,6 +106,7 @@ curl -sI https://<your-service>.onrender.com/ | head -1
 | 现象 | 原因与处理 |
 | --- | --- |
 | 健康检查一直失败 | 检查 `DATABASE_URL` 是否含 `sslmode=require`、`REDIS_URL` 是否为 `rediss://`；查看 Logs 里的连接报错。 |
+| **无法登录后台 / 不知道管理员密码** | 部署时 `ADMIN_PASSWORD` 留空了。留空时应用随机生成密码并**只在启动日志打印一次**（`Generated admin password (one-time): ...`），日志轮转后即丢失。处理：在 Render → Environment 补上 `ADMIN_PASSWORD`，然后在数据库删除已有管理员记录后重新部署，让初始化重新执行；或直接查日志找回那一行。 |
 | 启动报 Redis 握手错误 | `REDIS_URL` 写成了 `redis://`，Aiven 必须 `rediss://`。 |
 | `pq: sorry, too many clients already` / `remaining connection slots are reserved for roles with the SUPERUSER attribute` | 连接池打满了外部实例。确认 `DATABASE_MAX_OPEN_CONNS` 已设置且**小于**该 PostgreSQL 实例的 `max_connections`（Aiven 免费实例通常只有 ~20）。本项目已预置 `8`。 |
 | `max_idle_conns must be <= max_open_conns`（启动校验失败） | `DATABASE_MAX_IDLE_CONNS` 大于了 `DATABASE_MAX_OPEN_CONNS`，把空闲连接数调小到不超过上限。 |

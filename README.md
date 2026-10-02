@@ -474,25 +474,28 @@ This is an operator-managed local workflow; Docker Compose remains the recommend
 ### Method 4: Render Blueprint (free container)
 
 Deploy to a Render free container instance in the US region, backed by external PostgreSQL and Redis.
-The blueprint needs only **two secrets** — the rest is preset, including a small
-database connection pool that external Postgres plans (such as Aiven's free tier)
-require:
+The blueprint needs **three** values from you - two connection strings and an
+admin password - while the rest is preset, including a small database connection
+pool that external Postgres plans (such as Aiven's free tier) require:
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/countossbot/sub2api)
 
-Click the button, then paste your two connection strings when Render prompts for them:
+Click the button, then fill in `DATABASE_URL`, `REDIS_URL` and `ADMIN_PASSWORD` when Render prompts for them:
 
 | Environment variable | Required | Value |
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | External PostgreSQL connection string, e.g. `postgresql://user:password@host:5432/dbname?sslmode=require` |
 | `REDIS_URL` | Yes | External Redis/Valkey connection string; `rediss://` enables TLS, e.g. `rediss://default:password@host:6379` |
 | `AUTO_SETUP` | Prefilled | `true` — builds `config.yaml` and the first admin from the variables above |
+| `ADMIN_EMAIL` | Prefilled | `admin@sub2api.local` — login email of the initial administrator |
+| `ADMIN_PASSWORD` | **Required** | Your admin login password. If left empty the app generates a random one and prints it **once** in the deploy log, after which it is unrecoverable. |
 | `TZ` | Prefilled | `UTC` |
 | `DATABASE_MAX_OPEN_CONNS` | Prefilled | `8` — pool cap; the app default of `256` exhausts external plans that allow only ~20 connections |
 | `DATABASE_MAX_IDLE_CONNS` | Prefilled | `2` — must stay ≤ `DATABASE_MAX_OPEN_CONNS` |
+You supply `DATABASE_URL`, `REDIS_URL` and `ADMIN_PASSWORD`. No `DATABASE_HOST` / `REDIS_HOST` style split variables are required.
+Sign in with `ADMIN_EMAIL` + `ADMIN_PASSWORD` after the first deploy.
 
-Only `DATABASE_URL` and `REDIS_URL` need to be supplied. No `DATABASE_HOST` / `REDIS_HOST` style split variables are required.
-Verify the deployment with `curl -f https://<your-service>.onrender.com/health`.
+Verify the deployment with `curl -f https://<your-service>.onrender.com/health`, then sign in with `ADMIN_EMAIL` + `ADMIN_PASSWORD`.
 
 > Free instances have no persistent disk and sleep when idle. See [deploy/RENDER.md](deploy/RENDER.md) for the full guide, Aiven connection-string locations, and free-tier limitations.
 
