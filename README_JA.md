@@ -472,7 +472,28 @@ cd sub2api/deploy
 
 ---
 
-### 方法4: ソースからビルド
+### 方法4: Render ブループリント（無料コンテナ）
+
+Render の無料コンテナインスタンス（米国リージョン）へデプロイします。データベースと Redis は外部インスタンスを使用します。
+ブループリントで入力が必要なのは**2 つのシークレットのみ**で、残りの変数はあらかじめ設定済みです:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/countossbot/sub2api)
+
+| 環境変数 | 必須 | 値 |
+| --- | --- | --- |
+| `DATABASE_URL` | はい | 外部 PostgreSQL の接続文字列（例: `postgresql://user:password@host:5432/dbname?sslmode=require`） |
+| `REDIS_URL` | はい | 外部 Redis/Valkey の接続文字列。`rediss://` で TLS 有効（例: `rediss://default:password@host:6379`） |
+| `AUTO_SETUP` | 設定済み | `true` — 上記の変数から `config.yaml` と最初の管理者を作成します |
+| `TZ` | 設定済み | `UTC` |
+
+入力が必要なのは `DATABASE_URL` と `REDIS_URL` のみで、`DATABASE_*` / `REDIS_*` の個別変数は不要です。
+デプロイ後は `curl -f https://<サービス名>.onrender.com/health` で確認できます。
+
+> 無料インスタンスは永続ディスクがなく、アイドル時にスリープします。詳細は [deploy/RENDER.md](deploy/RENDER.md) を参照してください。
+
+---
+
+### 方法5: ソースからビルド
 
 開発やカスタマイズのためにソースコードからビルドして実行します。
 

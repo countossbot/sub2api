@@ -471,7 +471,31 @@ This is an operator-managed local workflow; Docker Compose remains the recommend
 
 ---
 
-### Method 4: Build from Source
+### Method 4: Render Blueprint (free container)
+
+Deploy to a Render free container instance in the US region, backed by external PostgreSQL and Redis.
+The blueprint needs only **two secrets** — everything else is preset:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/countossbot/sub2api)
+
+Click the button, then paste your two connection strings when Render prompts for them:
+
+| Environment variable | Required | Value |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | External PostgreSQL connection string, e.g. `postgresql://user:password@host:5432/dbname?sslmode=require` |
+| `REDIS_URL` | Yes | External Redis/Valkey connection string; `rediss://` enables TLS, e.g. `rediss://default:password@host:6379` |
+| `AUTO_SETUP` | Prefilled | `true` — builds `config.yaml` and the first admin from the variables above |
+| `TZ` | Prefilled | `UTC` |
+
+Only `DATABASE_URL` and `REDIS_URL` need to be supplied; no `DATABASE_*` or `REDIS_*` split variables are required.
+Verify the deployment with `curl -f https://<your-service>.onrender.com/health`.
+
+> Free instances have no persistent disk and sleep when idle. See [deploy/RENDER.md](deploy/RENDER.md) for the full guide, Aiven connection-string locations, and free-tier limitations.
+
+---
+
+
+### Method 5: Build from Source
 
 Build and run from source code for development or customization.
 

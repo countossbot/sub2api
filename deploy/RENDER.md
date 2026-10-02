@@ -3,6 +3,8 @@
 本文说明如何用仓库根目录的 **`render.yaml`** 蓝图，把 sub2api 部署到 **Render 免费容器实例（美国区域）**，
 数据库与 Redis 使用**外部已存在的 Aiven 实例**（PostgreSQL + Valkey）。
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/countossbot/sub2api)
+
 > 免费实例**没有持久磁盘**：`/app/data` 里的 `config.yaml` 会在每次重新部署时丢失。
 > 本项目已支持「无磁盘启动」——只要环境变量齐全，应用会自动重建配置，且不会因为数据库里已存在管理员而启动失败。
 
