@@ -10,18 +10,21 @@
 
 ---
 
-## 1. 环境变量（共 4 个）
+## 1. 环境变量（6 个，其中 2 个需你填写）
 
-只需以下 4 个变量。**不需要**任何 `DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_USER` /
-`DATABASE_PASSWORD` / `DATABASE_NAME` / `DATABASE_SSLMODE` 或 `REDIS_HOST` / `REDIS_PORT` /
+只需填写 **2 个连接串**，其余 4 个已在 `render.yaml` 中预置。**不需要**任何
+`DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_USER` / `DATABASE_PASSWORD` /
+`DATABASE_NAME` / `DATABASE_SSLMODE` 或 `REDIS_HOST` / `REDIS_PORT` /
 `REDIS_PASSWORD` / `REDIS_ENABLE_TLS` 分项变量——两个连接串已包含全部连接信息。
 
 | 变量 | 必需 | 作用 | 来源 / 格式 |
 | --- | --- | --- | --- |
-| `DATABASE_URL` | 是 | 后端连接 PostgreSQL 的连接串。解析出 host / port / user / password / dbname，`?sslmode=require` 会被识别用于 TLS。 | Aiven 控制台 → 该 PostgreSQL 服务 → **Overview / Connection information** → 复制 **URI**。格式：`postgresql://USER:PASSWORD@HOST:PORT/DBNAME?sslmode=require` |
-| `REDIS_URL` | 是 | 后端连接 Redis/Valkey 的连接串。`rediss://` 会自动开启 TLS；末尾 `/N` 表示使用第 N 号库。 | Aiven 控制台 → 该 Valkey 服务 → **Overview / Connection information** → 复制 **URI**。格式：`rediss://default:PASSWORD@HOST:PORT` |
-| `AUTO_SETUP` | 是 | 设为 `true` 时，首次启动会根据上面的连接串生成 `config.yaml` 并创建初始管理员。这正是无持久盘场景需要的自动初始化。 | 固定填 `"true"` |
-| `TZ` | 否 | 日志与定时任务使用的时区。 | 例如 `UTC`、`Asia/Shanghai`（默认 `Asia/Shanghai`） |
+| `DATABASE_URL` | 是（需填写） | 后端连接 PostgreSQL 的连接串。解析出 host / port / user / password / dbname，`?sslmode=require` 会被识别用于 TLS。 | Aiven 控制台 → 该 PostgreSQL 服务 → **Overview / Connection information** → 复制 **URI**。格式：`postgresql://USER:PASSWORD@HOST:PORT/DBNAME?sslmode=require` |
+| `REDIS_URL` | 是（需填写） | 后端连接 Redis/Valkey 的连接串。`rediss://` 会自动开启 TLS；末尾 `/N` 表示使用第 N 号库。 | Aiven 控制台 → 该 Valkey 服务 → **Overview / Connection information** → 复制 **URI**。格式：`rediss://default:PASSWORD@HOST:PORT` |
+| `AUTO_SETUP` | 已预置 | 设为 `true` 时，首次启动会根据上面的连接串生成 `config.yaml` 并创建初始管理员。这正是无持久盘场景需要的自动初始化。 | 固定填 `"true"` |
+| `TZ` | 已预置 | 日志与定时任务使用的时区。 | 默认 `UTC`，可改为 `Asia/Shanghai` 等 |
+| `DATABASE_MAX_OPEN_CONNS` | 已预置 | **数据库连接池上限，必须设置。** 应用默认值是 256，而 Aiven 免费实例总连接数只有 20 出头；不限制会立刻耗尽连接，后台任务报 `pq: sorry, too many clients already` 与 `remaining connection slots are reserved for roles with the SUPERUSER attribute`。 | 预置 `8`（可按套餐调整，需小于该实例的 `max_connections`） |
+| `DATABASE_MAX_IDLE_CONNS` | 已预置 | 连接池中保留的空闲连接数。需 **≤** `DATABASE_MAX_OPEN_CONNS`，否则应用启动校验会失败。 | 预置 `2` |
 
 `render.yaml` 中 `DATABASE_URL` 与 `REDIS_URL` 标记为 `sync: false`，即**不落盘到仓库**：
 Render 会在 Dashboard 里弹出输入框让你填写，值只存在于 Render 的服务环境中。
@@ -89,6 +92,8 @@ curl -sI https://<your-service>.onrender.com/ | head -1
 | --- | --- |
 | 健康检查一直失败 | 检查 `DATABASE_URL` 是否含 `sslmode=require`、`REDIS_URL` 是否为 `rediss://`；查看 Logs 里的连接报错。 |
 | 启动报 Redis 握手错误 | `REDIS_URL` 写成了 `redis://`，Aiven 必须 `rediss://`。 |
+| `pq: sorry, too many clients already` / `remaining connection slots are reserved for roles with the SUPERUSER attribute` | 连接池打满了外部实例。确认 `DATABASE_MAX_OPEN_CONNS` 已设置且**小于**该 PostgreSQL 实例的 `max_connections`（Aiven 免费实例通常只有 ~20）。本项目已预置 `8`。 |
+| `max_idle_conns must be <= max_open_conns`（启动校验失败） | `DATABASE_MAX_IDLE_CONNS` 大于了 `DATABASE_MAX_OPEN_CONNS`，把空闲连接数调小到不超过上限。 |
 | 重新部署后管理员又出现/或报管理员已存在 | 已按幂等处理：数据库已有管理员时会跳过创建，不会导致启动失败。 |
 | 首页 502 | 冷启动中，稍等后重试；或构建失败，检查构建日志。 |
 | 端口报错 | 无需手动设置 `PORT`，Render 自动注入，应用会读取。 |

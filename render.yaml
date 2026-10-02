@@ -33,3 +33,12 @@ services:
       # Timezone for logs and scheduling.
       - key: TZ
         value: UTC
+      # External Postgres plans (Aiven free tier) allow only a couple of dozen
+      # connections in total, while the application default is a pool of 256
+      # (max_open_conns) plus 128 idle. Without this cap the pool is exhausted
+      # immediately and background jobs fail with
+      # "pq: sorry, too many clients already".
+      - key: DATABASE_MAX_OPEN_CONNS
+        value: "8"
+      - key: DATABASE_MAX_IDLE_CONNS
+        value: "2"

@@ -11,7 +11,11 @@ ARG NODE_IMAGE=node:24-alpine
 ARG GOLANG_IMAGE=golang:1.27.0-alpine
 ARG ALPINE_IMAGE=alpine:3.21
 ARG POSTGRES_IMAGE=postgres:18-alpine
-ARG GOPROXY=https://goproxy.cn,direct
+# Module proxy / checksum DB. The China mirror is listed first only as an
+# optimization: Go falls through to `direct` (the official origin) when it is
+# unreachable, so builds also work from regions where goproxy.cn is blocked or
+# slow, such as Render's US region. Override with --build-arg if needed.
+ARG GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.google.cn
 ARG NPM_CONFIG_REGISTRY=
 
@@ -41,7 +45,9 @@ RUN --mount=type=cache,id=sub2api-pnpm-store,target=/root/.local/share/pnpm/stor
 # Copy only that subtree to keep the build dependency minimal.
 COPY frontend/ ./
 COPY docs/legal/ /app/docs/legal/
-RUN pnpm run build
+# Give Vite/vue-tsc a larger heap so the build survives memory-constrained
+# builders (Render free instances, small CI runners). Harmless elsewhere.
+RUN NODE_OPTIONS=--max-old-space-size=4096 pnpm run build
 
 # -----------------------------------------------------------------------------
 # Stage 2: Backend Builder
@@ -62,11 +68,39 @@ ARG GOSUMDB
 ARG TARGETOS
 ARG TARGETARCH
 
-ENV GOPROXY=${GOPROXY}
-ENV GOSUMDB=${GOSUMDB}
-
-# Install build dependencies
+# Build dependencies. wget is already provided by BusyBox in the Alpine base
+# image, so it is not installed here (fewer CDN fetches during the build).
 RUN apk add --no-cache git ca-certificates tzdata
+
+# Resolve a module proxy and checksum database that are reachable from wherever
+# this image is built. Both hosts are region specific: goproxy.cn and
+# sum.golang.google.cn work well in China, while proxy.golang.org and
+# sum.golang.org are the reachable pair in the rest of the world (Render's US
+# region). The first host that answers is selected, so a blocked mirror can no
+# longer hard-fail the build. If no checksum database answers, verification is
+# turned off for this build; module downloads still come from GOPROXY.
+RUN set -eu; \
+    reachable() { \
+        wget -q -T 8 -S -O /dev/null "https://$1/" 2>&1 | grep -q "HTTP/"; \
+    }; \
+    proxy=""; \
+    for h in goproxy.cn proxy.golang.org; do \
+        if reachable "$h"; then proxy="$proxy https://${h}"; fi; \
+    done; \
+    proxy="$(echo $proxy | sed 's/^ *//')"; \
+    if [ -z "$proxy" ]; then \
+        proxy="https://goproxy.cn,https://proxy.golang.org,direct"; \
+    fi; \
+    case "$proxy" in *,direct) goproxy="$proxy" ;; *) goproxy="${proxy},direct" ;; esac; \
+    sumdb=""; \
+    for h in "$GOSUMDB" sum.golang.org sum.golang.google.cn; do \
+        [ -n "$h" ] || continue; \
+        if reachable "$h"; then sumdb="$h"; break; fi; \
+    done; \
+    [ -n "$sumdb" ] || sumdb="off"; \
+    echo "GOPROXY=${goproxy}" > /etc/golang.env; \
+    echo "GOSUMDB=${sumdb}" >> /etc/golang.env; \
+    cat /etc/golang.env
 
 WORKDIR /app/backend
 
@@ -75,6 +109,7 @@ COPY backend/go.mod backend/go.sum ./
 # Cache mount keeps the module cache across builds so a transient CDN blip on
 # retry resumes instead of re-fetching every zip from scratch.
 RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
+    set -a && . /etc/golang.env && set +a && \
     go mod download
 
 # Copy backend source first
@@ -87,6 +122,7 @@ COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
 # Version precedence: build arg VERSION > exact git tag > cmd/server/VERSION
 RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
     --mount=type=cache,id=sub2api-gobuild,target=/root/.cache/go-build \
+    set -a && . /etc/golang.env && set +a && \
     VERSION_VALUE="${VERSION}" && \
     if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(./scripts/resolve-version.sh)"; fi && \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
@@ -149,12 +185,13 @@ RUN mkdir -p /app/data && chown sub2api:sub2api /app/data
 COPY deploy/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Expose port (can be overridden by SERVER_PORT env var)
+# Expose port (overridable via SERVER_PORT or the platform-injected PORT)
 EXPOSE 8080
 
-# Health check
+# Health check. SERVER_PORT wins, then PORT (Render / Heroku-like platforms),
+# then the default 8080 - the same precedence the application itself uses.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget -q -T 5 -O /dev/null http://localhost:${SERVER_PORT:-8080}/health || exit 1
+    CMD wget -q -T 5 -O /dev/null "http://localhost:${SERVER_PORT:-${PORT:-8080}}/health" || exit 1
 
 # Run the application (entrypoint fixes /app/data ownership then execs as sub2api)
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

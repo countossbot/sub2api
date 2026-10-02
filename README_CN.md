@@ -512,7 +512,7 @@ cd sub2api/deploy
 ### 方式四：Render 蓝图部署（免费容器）
 
 一键部署到 Render 免费容器实例（美国区域），数据库与 Redis 使用外部实例。
-蓝图只需填写**两个密钥**，其余变量已预置：
+蓝图只需填写**两个密钥**，其余变量已预置（含外部数据库连接池上限，Aiven 免费实例必须限制）：
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/countossbot/sub2api)
 
@@ -524,8 +524,10 @@ cd sub2api/deploy
 | `REDIS_URL` | 是 | 外部 Redis/Valkey 连接串；`rediss://` 表示启用 TLS，例如 `rediss://default:password@host:6379` |
 | `AUTO_SETUP` | 已预置 | `true`，根据上述变量生成 `config.yaml` 并创建首个管理员 |
 | `TZ` | 已预置 | `UTC` |
+| `DATABASE_MAX_OPEN_CONNS` | 已预置 | `8` — 连接池上限；应用默认值 `256` 会打满只允许约 20 个连接的外部实例 |
+| `DATABASE_MAX_IDLE_CONNS` | 已预置 | `2` — 必须 ≤ `DATABASE_MAX_OPEN_CONNS` |
 
-只需提供 `DATABASE_URL` 与 `REDIS_URL` 两个变量，**无需**任何 `DATABASE_*` / `REDIS_*` 分项变量。
+只需提供 `DATABASE_URL` 与 `REDIS_URL` 两个变量，**无需**任何 `DATABASE_HOST` / `REDIS_HOST` 之类的分项变量。
 部署完成后可用 `curl -f https://<你的服务>.onrender.com/health` 验证。
 
 > 免费实例无持久磁盘且空闲会休眠。完整步骤、Aiven 连接串获取位置与免费层限制见 [deploy/RENDER.md](deploy/RENDER.md)。
