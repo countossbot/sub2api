@@ -601,7 +601,9 @@ func AutoSetupFromEnv() error {
 		},
 		Server: ServerConfig{
 			Host: getEnvOrDefault("SERVER_HOST", "0.0.0.0"),
-			Port: getEnvIntOrDefault("SERVER_PORT", 8080),
+			// SERVER_PORT wins when set; otherwise fall back to PORT (injected
+			// by Render and other Heroku-like platforms) and then 8080.
+			Port: envIntOrDefaultWithFallback("SERVER_PORT", "PORT", 8080),
 			Mode: getEnvOrDefault("SERVER_MODE", "release"),
 		},
 		JWT: JWTConfig{
@@ -611,6 +613,11 @@ func AutoSetupFromEnv() error {
 		Timezone:                tz,
 		MigrationTimeoutSeconds: getEnvIntOrDefault("SETUP_MIGRATION_TIMEOUT_SECONDS", 0),
 	}
+
+	// Connection-string (DATABASE_URL / REDIS_URL) support. The fine-grained
+	// variables above win when explicitly set, so existing docker-compose
+	// deployments keep working; the URL fills in whatever was left unset.
+	applyEnvConnectionStrings(cfg)
 
 	// Generate JWT secret if not provided
 	if cfg.JWT.Secret == "" {

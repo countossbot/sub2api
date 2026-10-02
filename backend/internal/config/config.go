@@ -10,6 +10,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -3844,6 +3845,16 @@ func GetServerAddress() string {
 
 	host := v.GetString("server.host")
 	port := v.GetInt("server.port")
+	if _, ok := os.LookupEnv("SERVER_PORT"); !ok {
+		// Render and other Heroku-like platforms inject PORT; honor it when
+		// SERVER_PORT is not explicitly configured (docker-compose keeps
+		// setting SERVER_PORT, so its behavior is unchanged).
+		if raw := strings.TrimSpace(os.Getenv("PORT")); raw != "" {
+			if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+				port = parsed
+			}
+		}
+	}
 	return fmt.Sprintf("%s:%d", host, port)
 }
 

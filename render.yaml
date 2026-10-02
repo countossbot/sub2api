@@ -1,0 +1,35 @@
+# Render Blueprint for sub2api.
+#
+# Deploys the single Docker image (Go backend + embedded frontend) as one free
+# web service. PostgreSQL and Redis are NOT provisioned here: they live on an
+# existing external provider (Aiven) and are injected as connection strings.
+#
+# Variables marked `sync: false` are secrets: Render prompts for them in the
+# dashboard and never stores them in this file.
+#
+# See deploy/RENDER.md for the full step-by-step guide.
+
+services:
+  - type: web
+    name: sub2api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # External PostgreSQL (Aiven) connection string; format documented in
+      # deploy/RENDER.md. No credential value is stored in this file.
+      - key: DATABASE_URL
+        sync: false
+      # External Redis / Valkey (Aiven) connection string; TLS scheme required.
+      - key: REDIS_URL
+        sync: false
+      # Builds config.yaml and the first admin from the variables above.
+      - key: AUTO_SETUP
+        value: "true"
+      # Timezone for logs and scheduling.
+      - key: TZ
+        value: UTC
